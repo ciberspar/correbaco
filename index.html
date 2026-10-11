@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comebaco - El Reto del Balcón 🐢 vs 🐦</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700&display=swap');
+  
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #0f172a;
+    color: #f8fafc;
+  }
+  
+  .arcade-font {
+    font-family: 'Press Start 2P', monospace;
+  }
+
+  canvas {
+    image-rendering: pixelated;
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.3);
+  }
+</style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 select-none">
+
+  <!-- Contenedor Principal -->
+  <main class="w-full max-w-xl bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-5">
+    
+    <!-- Título y Estado -->
+    <div class="text-center">
+      <h1 class="arcade-font text-xl sm:text-2xl text-sky-400 tracking-wider mb-2">COMEBACO</h1>
+      <p class="text-xs text-slate-400">¡Ayuda a Baco a esquivar a los pájaros en el balcón!</p>
+    </div>
+
+    <!-- Panel de Puntuación -->
+    <div class="w-full flex justify-between items-center px-4 py-2 bg-slate-950 rounded-xl border border-slate-800 arcade-font text-xs">
+      <div class="text-sky-400">PUNTOS: <span id="score-val" class="text-white">0</span></div>
+      <div class="text-amber-400">RÉCORD: <span id="record-val" class="text-white">0</span></div>
+    </div>
+
+    <!-- Canvas del Juego -->
+    <div class="relative w-full flex justify-center">
+      <canvas id="gameCanvas" width="480" height="260" class="w-full max-w-[480px] bg-slate-950 rounded-xl border border-slate-800 cursor-pointer"></canvas>
+    </div>
+
+    <!-- Controles / Instrucciones -->
+    <div class="text-center text-xs text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 w-full">
+      <p class="font-bold text-sky-300 mb-1">🎮 Instrucciones:</p>
+      <p>Presioná <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">ESPACIO</span>, <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↑</span> o hacé <span class="text-white font-bold">CLIC / TOQUE</span> en la pantalla para saltar.</p>
+    </div>
+
+  </main>
+
+  <!-- Lógica del Juego -->
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreVal = document.getElementById('score-val');
+    const recordVal = document.getElementById('record-val');
+
+    let score = 0;
+    let highScore = localStorage.getItem('comebaco_highscore') || 0;
+    recordVal.textContent = highScore;
+
+    let isPlaying = false;
+    let isGameOver = false;
+
+    // Objeto Baco
+    const baco = {
+      x: 60,
+      y: 180,
+      width: 32,
+      height: 32,
+      vy: 0,
+      gravity: 0.7,
+      jumpForce: -10.5,
+      isJumping: false
+    };
+
+    let birds = [];
+    let frameCount = 0;
+    let gameSpeed = 4;
+
+    // Controles de salto
+    function triggerJump() {
+      if (!isPlaying && !isGameOver) {
+        startGame();
+      } else if (isPlaying && !baco.isJumping) {
+        baco.vy = baco.jumpForce;
+        baco.isJumping = true;
+      } else if (isGameOver) {
+        resetGame();
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        triggerJump();
+      }
+    });
+
+    canvas.onclick = () => {
+      triggerJump();
+    };
+
+    function startGame() {
+      isPlaying = true;
+      isGameOver = false;
+      score = 0;
+      gameSpeed = 4;
+      birds = [];
+      loop();
+    }
+
+    function resetGame() {
+      startGame();
+    }
+
+    function loop() {
+      if (!isPlaying || isGameOver) return;
+
+      frameCount++;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // --- Fondo y Suelo ---
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Líneas decorativas de fondo (estilo retro)
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, 220);
+      ctx.lineTo(canvas.width, 220);
+      ctx.stroke();
+
+      // Suelo del balcón
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 220, canvas.width, 40);
+
+      // --- Física y Dibujo de Baco 🐢 ---
+      baco.vy += baco.gravity;
+      baco.y += baco.vy;
+
+      // Colisión con el suelo
+      if (baco.y > 188) {
+        baco.y = 188;
+        baco.vy = 0;
+        baco.isJumping = false;
+      }
+
+      ctx.font = '28px monospace';
+      ctx.fillText('🐢', baco.x, baco.y + 24);
+
+      // --- Generación de Pájaros 🐦 ---
+      // Cada equis frames sale un pájaro nuevo, aumentando la frecuencia con la puntuación
+      let spawnRate = Math.max(50, 100 - Math.floor(score / 50));
+      if (frameCount % spawnRate === 0) {
+        // A veces vuelan bajo (para saltar) o un poco más alto
+        let birdHeight = Math.random() > 0.4 ? 185 : 140;
+        birds.push({
+          x: canvas.width,
+          y: birdHeight,
+          width: 28,
+          height: 28,
+          speed: gameSpeed + (score / 200)
+        });
+      }
+
+      // --- Actualizar y Dibujar Pájaros ---
+      for (let i = birds.length - 1; i >= 0; i--) {
+        let bird = birds[i];
+        bird.x -= bird.speed;
+        ctx.fillText('🐦', bird.x, bird.y + 24);
+
+        // Detección de Colisión (Bounding Box precisa)
+        if (
+          baco.x < bird.x + 20 &&
+          baco.x + baco.width - 8 > bird.x + 4 &&
+          baco.y < bird.y + 20 &&
+          baco.y + baco.height > bird.y + 4
+        ) {
+          isGameOver = true;
+          isPlaying = false;
+          if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('comebaco_highscore', highScore);
+            recordVal.textContent = highScore;
+          }
+        }
+
+        // Eliminar pájaros fuera de pantalla y sumar puntos
+        if (bird.x < -40) {
+          birds.splice(i, 1);
+          score += 10;
+          scoreVal.textContent = score;
+        }
+      }
+
+      // Continuar loop si sigue vivo
+      if (!isGameOver) {
+        requestAnimationFrame(loop);
+      } else {
+        drawGameOverScreen();
+      }
+    }
+
+    // Pantalla de Inicio (Idle)
+    function drawStartScreen() {
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Suelo
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 220, canvas.width, 40);
+
+      // Dibujar a Baco quieto
+      ctx.font = '28px monospace';
+      ctx.fillText('🐢', baco.x, 212);
+
+      // Texto de inicio parpadeante / estático
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('¡TOCÁ O PULSÁ ESPACIO', canvas.width / 2, 100);
+      ctx.fillText('PARA COMENZAR!', canvas.width / 2, 125);
+      
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px monospace';
+      ctx.fillText('Evitá a los pájaros', canvas.width / 2, 155);
+      ctx.textAlign = 'left';
+    }
+
+    // Pantalla de Game Over
+    function drawGameOverScreen() {
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText('¡LOS PÁJAROS ATACARON A BACO!', canvas.width / 2, 90);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Puntuación final: ${score}`, canvas.width / 2, 130);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '11px monospace';
+      ctx.fillText('Hacé clic o presioná R para reintentar', canvas.width / 2, 170);
+      ctx.textAlign = 'left';
+    }
+
+    // Inicializar pantalla de presentación
+    drawStartScreen();
+  </script>
+</body>
+</html>
