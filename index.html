@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comebaco - El Reto del Balcón 🐢 vs 🐦</title>
+<title>Comebaco: El Desafío de los Carriles 🐢 vs 🐦</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700&display=swap');
@@ -20,99 +20,122 @@
 
   canvas {
     image-rendering: pixelated;
-    box-shadow: 0 0 25px rgba(56, 189, 248, 0.3);
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.3);
   }
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 select-none">
 
-  <!-- Contenedor Principal -->
   <main class="w-full max-w-xl bg-slate-900 border-2 border-slate-700 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-5">
     
-    <!-- Título y Estado -->
+    <!-- Título -->
     <div class="text-center">
-      <h1 class="arcade-font text-xl sm:text-2xl text-sky-400 tracking-wider mb-2">COMEBACO</h1>
-      <p class="text-xs text-slate-400">¡Ayuda a Baco a esquivar a los pájaros en el balcón!</p>
+      <h1 class="arcade-font text-xl sm:text-2xl text-sky-400 tracking-wider mb-2">COMEBACO: CARRILES</h1>
+      <p class="text-xs text-slate-400">¡Ayudá a Baco a cruzar y esquivar los pájaros enojados!</p>
     </div>
 
-    <!-- Panel de Puntuación -->
-    <div class="w-full flex justify-between items-center px-4 py-2 bg-slate-950 rounded-xl border border-slate-800 arcade-font text-xs">
+    <!-- Panel de Estado (Puntuación, Nivel y Récord) -->
+    <div class="w-full grid grid-cols-3 gap-2 px-4 py-2 bg-slate-950 rounded-xl border border-slate-800 arcade-font text-[10px] text-center">
       <div class="text-sky-400">PUNTOS: <span id="score-val" class="text-white">0</span></div>
+      <div class="text-emerald-400">NIVEL: <span id="level-val" class="text-white">1</span></div>
       <div class="text-amber-400">RÉCORD: <span id="record-val" class="text-white">0</span></div>
     </div>
 
     <!-- Canvas del Juego -->
     <div class="relative w-full flex justify-center">
-      <canvas id="gameCanvas" width="480" height="260" class="w-full max-w-[480px] bg-slate-950 rounded-xl border border-slate-800 cursor-pointer"></canvas>
+      <canvas id="gameCanvas" width="480" height="280" class="w-full max-w-[480px] bg-slate-950 rounded-xl border border-slate-800 cursor-pointer"></canvas>
     </div>
 
-    <!-- Controles / Instrucciones -->
-    <div class="text-center text-xs text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 w-full">
-      <p class="font-bold text-sky-300 mb-1">🎮 Instrucciones:</p>
-      <p>Presioná <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">ESPACIO</span>, <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↑</span> o hacé <span class="text-white font-bold">CLIC / TOQUE</span> en la pantalla para saltar.</p>
+    <!-- Controles -->
+    <div class="text-center text-xs text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 w-full flex flex-col gap-1">
+      <p class="font-bold text-sky-300">🎮 Controles:</p>
+      <p>Usá las flechas <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↑</span> <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↓</span> o tocá la pantalla arriba/abajo para cambiar de carril.</p>
     </div>
 
   </main>
 
-  <!-- Lógica del Juego -->
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const scoreVal = document.getElementById('score-val');
+    const levelVal = document.getElementById('level-val');
     const recordVal = document.getElementById('record-val');
 
     let score = 0;
-    let highScore = localStorage.getItem('comebaco_highscore') || 0;
+    let level = 1;
+    let highScore = localStorage.getItem('comebaco_lanes_highscore') || 0;
     recordVal.textContent = highScore;
 
     let isPlaying = false;
     let isGameOver = false;
 
+    // Posiciones de los 3 carriles (Y central de cada carril)
+    const lanes = [75, 140, 205];
+    
     // Objeto Baco
     const baco = {
+      laneIndex: 1, // Empieza en el carril del medio
       x: 60,
-      y: 180,
-      width: 32,
-      height: 32,
-      vy: 0,
-      gravity: 0.7,
-      jumpForce: -10.5,
-      isJumping: false
+      radius: 16,
+      targetY: lanes[1],
+      currentY: lanes[1]
     };
 
     let birds = [];
     let frameCount = 0;
-    let gameSpeed = 4;
+    let baseSpeed = 3;
 
-    // Controles de salto
-    function triggerJump() {
-      if (!isPlaying && !isGameOver) {
-        startGame();
-      } else if (isPlaying && !baco.isJumping) {
-        baco.vy = baco.jumpForce;
-        baco.isJumping = true;
-      } else if (isGameOver) {
-        resetGame();
-      }
-    }
-
+    // Control de movimientos por teclado
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp') {
-        e.preventDefault();
-        triggerJump();
+      if (!isPlaying && !isGameOver) {
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') startGame();
+        return;
+      }
+
+      if (isPlaying) {
+        if (e.code === 'ArrowUp') {
+          if (baco.laneIndex > 0) baco.laneIndex--;
+        }
+        if (e.code === 'ArrowDown') {
+          if (baco.laneIndex < lanes.length - 1) baco.laneIndex++;
+        }
+      }
+
+      if (isGameOver && (e.code === 'Space' || e.code === 'KeyR')) {
+        resetGame();
       }
     });
 
-    canvas.onclick = () => {
-      triggerJump();
+    // Control táctil o por clic (Dividir pantalla arriba/abajo)
+    canvas.onclick = (e) => {
+      if (!isPlaying && !isGameOver) {
+        startGame();
+        return;
+      }
+      if (isGameOver) {
+        resetGame();
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const clickY = e.clientY - rect.top;
+      
+      // Si hace clic en la mitad superior o inferior del canvas
+      if (clickY < canvas.height / 2) {
+        if (baco.laneIndex > 0) baco.laneIndex--;
+      } else {
+        if (baco.laneIndex < lanes.length - 1) baco.laneIndex++;
+      }
     };
 
     function startGame() {
       isPlaying = true;
       isGameOver = false;
       score = 0;
-      gameSpeed = 4;
+      level = 1;
+      baseSpeed = 3;
       birds = [];
+      baco.laneIndex = 1;
       loop();
     }
 
@@ -126,82 +149,75 @@
       frameCount++;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // --- Fondo y Suelo ---
-      ctx.fillStyle = '#020617';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Líneas decorativas de fondo (estilo retro)
+      // --- Dibujar los 3 Carriles (Líneas de la ruta/balcón) ---
       ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      
+      // Líneas divisorias
       ctx.beginPath();
-      ctx.moveTo(0, 220);
-      ctx.lineTo(canvas.width, 220);
+      ctx.moveTo(0, 108); ctx.lineTo(canvas.width, 108);
+      ctx.moveTo(0, 172); ctx.lineTo(canvas.width, 172);
       ctx.stroke();
+      ctx.setLineDash([]); // Resetear patrón de línea
 
-      // Suelo del balcón
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 220, canvas.width, 40);
+      // Suavizar transición de movimiento de Baco entre carriles
+      baco.targetY = lanes[baco.laneIndex];
+      baco.currentY += (baco.targetY - baco.currentY) * 0.25;
 
-      // --- Física y Dibujo de Baco 🐢 ---
-      baco.vy += baco.gravity;
-      baco.y += baco.vy;
+      // --- Dibujar y Actualizar Baco 🐢 ---
+      ctx.font = '26px monospace';
+      ctx.fillText('🐢', baco.x - 12, baco.currentY + 9);
 
-      // Colisión con el suelo
-      if (baco.y > 188) {
-        baco.y = 188;
-        baco.vy = 0;
-        baco.isJumping = false;
-      }
-
-      ctx.font = '28px monospace';
-      ctx.fillText('🐢', baco.x, baco.y + 24);
-
-      // --- Generación de Pájaros 🐦 ---
-      // Cada equis frames sale un pájaro nuevo, aumentando la frecuencia con la puntuación
-      let spawnRate = Math.max(50, 100 - Math.floor(score / 50));
-      if (frameCount % spawnRate === 0) {
-        // A veces vuelan bajo (para saltar) o un poco más alto
-        let birdHeight = Math.random() > 0.4 ? 185 : 140;
+      // --- Generación de Pájaros por Carril ---
+      // A medida que sube el nivel, aparecen más seguido (spawnRate más chico)
+      let spawnInterval = Math.max(35, 75 - (level * 8));
+      if (frameCount % spawnInterval === 0) {
+        let randomLane = Math.floor(Math.random() * lanes.length);
         birds.push({
-          x: canvas.width,
-          y: birdHeight,
-          width: 28,
-          height: 28,
-          speed: gameSpeed + (score / 200)
+          x: canvas.width + 30,
+          laneIndex: randomLane,
+          y: lanes[randomLane],
+          speed: baseSpeed + (level * 0.6) // ¡Cada nivel son más rápidos!
         });
       }
 
-      // --- Actualizar y Dibujar Pájaros ---
+      // --- Actualizar y Dibujar Pájaros 🐦 ---
       for (let i = birds.length - 1; i >= 0; i--) {
         let bird = birds[i];
         bird.x -= bird.speed;
-        ctx.fillText('🐦', bird.x, bird.y + 24);
+        
+        ctx.fillText('🐦', bird.x - 12, bird.y + 9);
 
-        // Detección de Colisión (Bounding Box precisa)
+        // Detección de Colisión (Mismo carril y cercanía horizontal)
         if (
-          baco.x < bird.x + 20 &&
-          baco.x + baco.width - 8 > bird.x + 4 &&
-          baco.y < bird.y + 20 &&
-          baco.y + baco.height > bird.y + 4
+          baco.laneIndex === bird.laneIndex &&
+          Math.abs(baco.x - bird.x) < 22
         ) {
           isGameOver = true;
           isPlaying = false;
           if (score > highScore) {
             highScore = score;
-            localStorage.setItem('comebaco_highscore', highScore);
+            localStorage.setItem('comebaco_lanes_highscore', highScore);
             recordVal.textContent = highScore;
           }
         }
 
-        // Eliminar pájaros fuera de pantalla y sumar puntos
-        if (bird.x < -40) {
+        // Si el pájaro cruza la pantalla, suma puntos
+        if (bird.x < -30) {
           birds.splice(i, 1);
           score += 10;
           scoreVal.textContent = score;
+
+          // Dificultad progresiva: Cada 100 puntos sube de nivel
+          let newLevel = Math.floor(score / 100) + 1;
+          if (newLevel > level) {
+            level = newLevel;
+            levelVal.textContent = level;
+          }
         }
       }
 
-      // Continuar loop si sigue vivo
       if (!isGameOver) {
         requestAnimationFrame(loop);
       } else {
@@ -209,53 +225,45 @@
       }
     }
 
-    // Pantalla de Inicio (Idle)
     function drawStartScreen() {
       ctx.fillStyle = '#020617';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Suelo
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 220, canvas.width, 40);
 
-      // Dibujar a Baco quieto
-      ctx.font = '28px monospace';
-      ctx.fillText('🐢', baco.x, 212);
-
-      // Texto de inicio parpadeante / estático
       ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 16px monospace';
+      ctx.font = 'bold 15px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('¡TOCÁ O PULSÁ ESPACIO', canvas.width / 2, 100);
-      ctx.fillText('PARA COMENZAR!', canvas.width / 2, 125);
+      ctx.fillText('¡EL DESAFÍO DE LOS CARRILES!', canvas.width / 2, 90);
       
-      ctx.fillStyle = '#94a3b8';
+      ctx.fillStyle = '#f8fafc';
       ctx.font = '11px monospace';
-      ctx.fillText('Evitá a los pájaros', canvas.width / 2, 155);
+      ctx.fillText('Usá ↑ ↓ para cambiar de carril', canvas.width / 2, 130);
+      ctx.fillText('Cada 100 pts sube la dificultad', canvas.width / 2, 155);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '10px monospace';
+      ctx.fillText('TOCÁ PARA EMPEZAR', canvas.width / 2, 210);
       ctx.textAlign = 'left';
     }
 
-    // Pantalla de Game Over
     function drawGameOverScreen() {
-      ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.88)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ef4444';
-      ctx.font = 'bold 16px monospace';
+      ctx.font = 'bold 15px monospace';
       ctx.fillText('¡LOS PÁJAROS ATACARON A BACO!', canvas.width / 2, 90);
 
       ctx.fillStyle = '#f8fafc';
       ctx.font = '12px monospace';
-      ctx.fillText(`Puntuación final: ${score}`, canvas.width / 2, 130);
+      ctx.fillText(`Puntuación: ${score} | Nivel alcanzado: ${level}`, canvas.width / 2, 130);
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = '11px monospace';
-      ctx.fillText('Hacé clic o presioná R para reintentar', canvas.width / 2, 170);
+      ctx.fillText('Hacé clic o presioná ESPACIO para reintentar', canvas.width / 2, 180);
       ctx.textAlign = 'left';
     }
 
-    // Inicializar pantalla de presentación
     drawStartScreen();
   </script>
 </body>
