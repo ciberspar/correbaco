@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comebaco: Carriles y Antorchas 🐢 vs 🐦🔥</title>
+<title>Comebaco: Pájaros Lanzallamas 🐢 vs 🐦🔥</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700&display=swap');
@@ -20,7 +20,7 @@
 
   canvas {
     image-rendering: pixelated;
-    box-shadow: 0 0 30px rgba(249, 115, 22, 0.3);
+    box-shadow: 0 0 30px rgba(249, 115, 22, 0.4);
   }
 </style>
 </head>
@@ -30,8 +30,8 @@
     
     <!-- Título -->
     <div class="text-center">
-      <h1 class="arcade-font text-lg sm:text-xl text-amber-500 tracking-wider mb-2">COMEBACO: FUEGO</h1>
-      <p class="text-xs text-slate-400">¡Cuidado con los pájaros y las antorchas del balcón!</p>
+      <h1 class="arcade-font text-lg sm:text-xl text-amber-500 tracking-wider mb-2">COMEBACO: ATAQUE FUEGO</h1>
+      <p class="text-xs text-slate-400">¡Los pájaros le lanzan antorchas teledirigidas a Baco!</p>
     </div>
 
     <!-- Panel de Estado -->
@@ -48,8 +48,8 @@
 
     <!-- Controles -->
     <div class="text-center text-xs text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 w-full flex flex-col gap-1">
-      <p class="font-bold text-amber-400">🔥 ¡Peligro de Fuego!</p>
-      <p>Usá las flechas <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↑</span> <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↓</span> o tocá arriba/abajo para cambiar de carril.</p>
+      <p class="font-bold text-amber-400">🔥 ¡Antorchas Perseguidoras!</p>
+      <p>Cambiá de carril con las flechas <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↑</span> <span class="text-white font-mono bg-slate-800 px-1.5 py-0.5 rounded">↓</span> o tocando arriba/abajo cuando te disparen.</p>
     </div>
 
   </main>
@@ -63,7 +63,7 @@
 
     let score = 0;
     let level = 1;
-    let highScore = localStorage.getItem('comebaco_fire_highscore') || 0;
+    let highScore = localStorage.getItem('comebaco_homing_highscore') || 0;
     recordVal.textContent = highScore;
 
     let isPlaying = false;
@@ -80,7 +80,8 @@
       currentY: lanes[1]
     };
 
-    let hazards = []; // Aquí guardaremos tanto pájaros como antorchas
+    let birds = [];
+    let torches = []; // Antorchas lanzadas
     let frameCount = 0;
     let baseSpeed = 3;
 
@@ -132,7 +133,8 @@
       score = 0;
       level = 1;
       baseSpeed = 3;
-      hazards = [];
+      birds = [];
+      torches = [];
       baco.laneIndex = 1;
       loop();
     }
@@ -147,79 +149,96 @@
       frameCount++;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // --- Dibujar los 3 Carriles ---
+      // --- Dibujar Carriles ---
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 6]);
-      
       ctx.beginPath();
       ctx.moveTo(0, 108); ctx.lineTo(canvas.width, 108);
       ctx.moveTo(0, 172); ctx.lineTo(canvas.width, 172);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Movimiento fluido de Baco entre carriles
+      // Movimiento suave de Baco entre carriles
       baco.targetY = lanes[baco.laneIndex];
       baco.currentY += (baco.targetY - baco.currentY) * 0.25;
 
-      // --- Dibujar a Baco 🐢 ---
+      // --- Dibujar Baco 🐢 ---
       ctx.font = '26px monospace';
       ctx.fillText('🐢', baco.x - 12, baco.currentY + 9);
 
-      // --- Generación de Obstáculos (Pájaros 🐦 o Antorchas 🔥) ---
-      let spawnInterval = Math.max(30, 70 - (level * 7));
+      // --- Generación de Pájaros 🐦 ---
+      let spawnInterval = Math.max(35, 75 - (level * 6));
       if (frameCount % spawnInterval === 0) {
         let randomLane = Math.floor(Math.random() * lanes.length);
-        
-        // 70% probabilidad de pájaro, 30% de antorcha (a partir del nivel 1, sube el peligro)
-        let type = Math.random() < 0.65 ? 'bird' : 'torch';
-
-        hazards.push({
+        birds.push({
           x: canvas.width + 30,
           laneIndex: randomLane,
           y: lanes[randomLane],
-          type: type,
-          speed: baseSpeed + (level * 0.5)
+          speed: baseSpeed + (level * 0.4),
+          hasShot: false // Marca para saber si ya lanzó su antorcha
         });
       }
 
-      // --- Actualizar y Dibujar Obstáculos ---
-      for (let i = hazards.length - 1; i >= 0; i--) {
-        let h = hazards[i];
-        h.x -= h.speed;
-        
-        if (h.type === 'bird') {
-          ctx.fillText('🐦', h.x - 12, h.y + 9);
-        } else {
-          // Antorcha con fuego parpadeante
-          ctx.fillText('🔥', h.x - 12, h.y + 9);
+      // --- Lógica de Pájaros ---
+      for (let i = birds.length - 1; i >= 0; i--) {
+        let bird = birds[i];
+        bird.x -= bird.speed;
+        ctx.fillText('🐦', bird.x - 12, bird.y + 9);
+
+        // Disparo de antorchas teledirigidas hacia Baco cuando el pájaro está cerca
+        if (!bird.hasShot && bird.x < canvas.width - 80 && bird.x > 200) {
+          bird.hasShot = true;
+          
+          // Calcular dirección hacia Baco en el momento del disparo
+          let dx = baco.x - bird.x;
+          let dy = baco.currentY - bird.y;
+          let angle = Math.atan2(dy, dx);
+          let torchSpeed = 4.5 + (level * 0.3);
+
+          torches.push({
+            x: bird.x,
+            y: bird.y,
+            vx: Math.cos(angle) * torchSpeed,
+            vy: Math.sin(angle) * torchSpeed
+          });
         }
 
-        // Colisión (Mismo carril y proximidad horizontal)
-        if (
-          baco.laneIndex === h.laneIndex &&
-          Math.abs(baco.x - h.x) < 20
-        ) {
-          isGameOver = true;
-          isPlaying = false;
-          if (score > highScore) {
-            highScore = score;
-            localStorage.setItem('comebaco_fire_highscore', highScore);
-            recordVal.textContent = highScore;
-          }
+        // Colisión directa con el pájaro
+        if (baco.laneIndex === bird.laneIndex && Math.abs(baco.x - bird.x) < 20) {
+          endGame();
         }
 
-        // Si el obstáculo sale de la pantalla, suma puntos
-        if (h.x < -30) {
-          hazards.splice(i, 1);
+        if (bird.x < -30) {
+          birds.splice(i, 1);
           score += 10;
           scoreVal.textContent = score;
 
-          let newLevel = Math.floor(score / 90) + 1;
+          let newLevel = Math.floor(score / 80) + 1;
           if (newLevel > level) {
             level = newLevel;
             levelVal.textContent = level;
           }
+        }
+      }
+
+      // --- Lógica de Antorchas Teledirigidas 🔥 ---
+      for (let j = torches.length - 1; j >= 0; j--) {
+        let torch = torches[j];
+        torch.x += torch.vx;
+        torch.y += torch.vy;
+
+        ctx.fillText('🔥', torch.x - 10, torch.y + 8);
+
+        // Colisión de antorcha con Baco
+        let dist = Math.hypot(baco.x - torch.x, baco.currentY - torch.y);
+        if (dist < 22) {
+          endGame();
+        }
+
+        // Eliminar si sale de la pantalla
+        if (torch.x < -20 || torch.y < -20 || torch.y > canvas.height + 20) {
+          torches.splice(j, 1);
         }
       }
 
@@ -230,6 +249,16 @@
       }
     }
 
+    function endGame() {
+      isGameOver = true;
+      isPlaying = false;
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('comebaco_homing_highscore', highScore);
+        recordVal.textContent = highScore;
+      }
+    }
+
     function drawStartScreen() {
       ctx.fillStyle = '#020617';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -237,16 +266,16 @@
       ctx.fillStyle = '#f97316';
       ctx.font = 'bold 15px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('¡CUIDADO CON EL FUEGO!', canvas.width / 2, 85);
+      ctx.fillText('¡PÁJAROS CON ANTORCHAS!', canvas.width / 2, 85);
       
       ctx.fillStyle = '#f8fafc';
       ctx.font = '11px monospace';
-      ctx.fillText('Esquivá pájaros 🐦 y antorchas 🔥', canvas.width / 2, 125);
-      ctx.fillText('¡Cada nivel aumenta la velocidad!', canvas.width / 2, 150);
+      ctx.fillText('¡Los pájaros le disparan fuego a Baco!', canvas.width / 2, 125);
+      ctx.fillText('Cambiá de carril para esquivar los ataques', canvas.width / 2, 150);
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = '10px monospace';
-      ctx.fillText('TOCÁ O PULSá ESPACIO PARA EMPEZAR', canvas.width / 2, 215);
+      ctx.fillText('TOCÁ O PULSÁ ESPACIO PARA JUGAR', canvas.width / 2, 215);
       ctx.textAlign = 'left';
     }
 
@@ -257,11 +286,11 @@
       ctx.textAlign = 'center';
       ctx.fillStyle = '#ef4444';
       ctx.font = 'bold 15px monospace';
-      ctx.fillText('¡BACO SE QUEMÓ / FUE ATACADO!', canvas.width / 2, 90);
+      ctx.fillText('¡UNA ANTORCHA ALCANZÓ A BACO!', canvas.width / 2, 90);
 
       ctx.fillStyle = '#f8fafc';
       ctx.font = '12px monospace';
-      ctx.fillText(`Puntuación: ${score} | Nivel: ${level}`, canvas.width / 2, 130);
+      ctx.fillText(`Puntuación: ${score} | Nivel alcanzado: ${level}`, canvas.width / 2, 130);
 
       ctx.fillStyle = '#38bdf8';
       ctx.font = '11px monospace';
